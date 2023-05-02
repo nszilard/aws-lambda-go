@@ -1,41 +1,64 @@
+#!make
+#----------------------------------------
+# Settings
+#----------------------------------------
+.DEFAULT_GOAL := help
+
 #--------------------------------------------------
 # Variables
 #--------------------------------------------------
-SCRIPT=$(CURDIR)/scripts
-#--------------------------------------------------
-GOFMT_FILES?=$$(find . -name '*.go')
-#--------------------------------------------------
-PACKAGES?=$$(go list ./... \
-	| grep -vF function/internal )
+TEST?=$$(go list ./...)
+GO_FILES?=$$(find . -name '*.go')
 
 #--------------------------------------------------
 # Targets
 #--------------------------------------------------
-package: clean fmt
-	@mkdir -p dist
-	@rsync -a . dist \
-		--exclude dist \
-		--exclude scripts \
-		--exclude Makefile \
-		--exclude .gitignore \
-		--exclude *_test.go
-	@cd dist && GOOS=linux go build -o main
-	@cd dist && zip -qr ../lambda.zip .
-	@rm -rf dist
+.PHONY: bootstrap
+bootstrap: ## Downloads and cleans up all dependencies
+	@go mod tidy
+	@go mod download
 
-fmt:
-	@gofmt -w $(GOFMT_FILES)
+.PHONY: fmt
+fmt: ## Formats go files
+	@echo "==> Formatting files..."
+	@gofmt -w -s $(GO_FILES)
+	@echo ""
 
-test:
-	@go test $(PACKAGES) -parallel=20
+.PHONY: check
+check: ## Checks code for linting/construct errors
+	@echo "==> Checking if files are well formatted..."
+	@gofmt -l $(GO_FILES)
+	@echo ""
+	@echo "==> Checking if files pass go vet..."
+	@go list -f '{{.Dir}}' ./... | xargs go vet;
+	@echo ""
 
-coverage:
-	@sh -c "'$(SCRIPT)/getCoverage.sh'"
+.PHONY: test
+test: check ## Runs all tests
+	@echo "==> Running tests..."
+	@go test -v --race $(TEST) -parallel=20
+	@echo ""
 
-coverage-html:
-	@SHOW_HTML='true' sh -c "'$(SCRIPT)/getCoverage.sh'"
+.PHONY: coverage
+coverage: ## Runs code coverage
+	@mkdir -p .coverage
+	@go test --p=1 $(TEST) -coverprofile=.coverage/cover.out -covermode=atomic
+	@go tool cover -html=.coverage/cover.out
 
-.PHONY: clean fmt package test
-clean:
-	@rm -rf dist
-	@rm -f lambda.zip
+.PHONY: package
+package: clean ## Packages the lambda code into a ZIP file
+	@echo "==> Packaging application ..."
+	@mkdir -p .dist
+	@rsync -a . .dist --exclude .dist --exclude .gitignore --exclude Makefile --exclude README.md
+	@cd .dist && zip -qr ../dist.zip . && cd ..
+	@echo ""
+
+clean: ## Cleans up temporary and compiled files
+	@echo "==> Cleaning up ..."
+	@rm -rf .coverage
+	@rm -rf .dist
+	@rm -rf dist.zip
+	@echo ""
+
+help:
+	@fgrep -h "## " $(MAKEFILE_LIST) | fgrep -v fgrep | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-10s\033[0m %s\n", $$1, $$2}'

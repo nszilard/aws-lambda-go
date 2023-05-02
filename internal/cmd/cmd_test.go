@@ -1,7 +1,6 @@
-package main
+package cmd
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,7 @@ func TestSuccess(t *testing.T) {
 		Count: 10,
 	}
 
-	_, err := application(context.TODO(), pl)
+	_, err := Entrypoint(pl)
 
 	assert.Nil(t, err)
 }
@@ -25,7 +24,7 @@ func TestFailure(t *testing.T) {
 		Count: 10,
 	}
 
-	_, err := application(context.TODO(), pl)
+	_, err := Entrypoint(pl)
 
 	assert.NotNil(t, err)
 }

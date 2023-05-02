@@ -1,2 +1,6 @@
+# Coverage files
+.coverage
+
 # Packaged artefact
-lambda.zip
+.dist
+dist.zip
